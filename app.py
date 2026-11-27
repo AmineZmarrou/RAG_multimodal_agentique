@@ -1,3 +1,4 @@
+import os
 import re
 import streamlit as st
 import psycopg2
@@ -6,8 +7,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.tools import tool
 from indexer import index_pdf
 
-# 1. CONFIGURATION AVEC VOTRE LIEN NEON.TECH
-DB_URL = "postgresql://neondb_owner:npg_iMdXy4zUIRP7@ep-winter-rain-b4fuzg82-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DB_URL = os.environ["DATABASE_URL"]
 
 st.set_page_config(page_title="RAG Multimodal Agentique", layout="wide")
 st.title("🤖 Assistant RAG Multimodal & Agentique")

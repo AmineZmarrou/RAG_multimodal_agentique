@@ -26,12 +26,30 @@ py -3.11 -m venv .venv
 
 ### 2. Créer la base de démonstration
 
-Remplacez `MOT_DE_PASSE_LOCAL` par un mot de passe personnel. Pour cet exemple de connexion, utilisez des lettres et des chiffres.
+**Avec Neon**, ouvrez l’éditeur SQL de votre propre base et exécutez directement le bloc SQL ci-dessous. Ce parcours permet de lancer MaintiDoc même si Docker Desktop affiche `exec format error`.
+
+**Avec Docker Desktop**, utilisez le moteur Linux. Dans PowerShell, récupérez sa plateforme et testez le démarrage de l’image pgvector avant de connecter le volume de données.
 
 ```powershell
-docker run --name maintidoc-db -e POSTGRES_PASSWORD=MOT_DE_PASSE_LOCAL -e POSTGRES_DB=maintidoc -p 127.0.0.1:5432:5432 -v maintidoc-pg:/var/lib/postgresql/data -d pgvector/pgvector:pg16
-docker exec -it maintidoc-db psql -U postgres -d maintidoc
+$platform = docker version --format '{{.Server.Os}}/{{.Server.Arch}}'
+docker pull --platform $platform pgvector/pgvector:pg16
+docker run --rm --platform $platform pgvector/pgvector:pg16 postgres --version
 ```
+
+Continuez si le test affiche la version de PostgreSQL. Si un ancien conteneur nommé `maintidoc-db` est arrêté avec `exec format error`, conservez-le sous un autre nom avant de recréer le service :
+
+```powershell
+docker rename maintidoc-db maintidoc-db-ancien
+```
+
+Remplacez `MOT_DE_PASSE_LOCAL` par votre mot de passe. Avec un volume déjà initialisé, utilisez le mot de passe existant.
+
+```powershell
+docker run --name maintidoc-db --platform $platform -e POSTGRES_PASSWORD=MOT_DE_PASSE_LOCAL -e POSTGRES_DB=maintidoc -p 127.0.0.1:5432:5432 -v maintidoc-pg:/var/lib/postgresql/data -d pgvector/pgvector:pg16
+docker exec maintidoc-db pg_isready -U postgres -d maintidoc
+```
+
+Lorsque PostgreSQL affiche `accepting connections`, ouvrez sa console avec `docker exec -it maintidoc-db psql -U postgres -d maintidoc`. Si le test de l’image échoue encore, utilisez le parcours Neon ci-dessus pour poursuivre le projet.
 
 Dans `psql`, exécutez les instructions suivantes. Avec Neon, exécutez-les dans l’éditeur SQL de votre base.
 
@@ -52,13 +70,7 @@ Dans `psql`, saisissez `\q` pour revenir à PowerShell.
 
 ### 3. Configurer la connexion
 
-Dans la version examinée (`e375344`), `app.py`, `indexer.py` et `test_db.py` contiennent chacun une affectation de `DB_URL`. **Avant le premier lancement**, remplacez cette affectation dans les trois fichiers par le code suivant. Ajoutez `import os` uniquement si l’import est absent.
-
-```python
-import os
-
-DB_URL = os.environ["DATABASE_URL"]
-```
+Les trois scripts lisent la variable d’environnement `DATABASE_URL`. Définissez-la dans le même terminal que Streamlit.
 
 Le mot de passe Neon précédemment publié doit être renouvelé par le propriétaire du dépôt. Conservez le nouvel identifiant en dehors du code.
 

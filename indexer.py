@@ -6,8 +6,7 @@ from sentence_transformers import SentenceTransformer, util
 from llama_index.core import Document
 from llama_index.core.node_parser import SentenceSplitter
 
-# 1. CONFIGURATION AVEC VOTRE LIEN NEON.TECH
-DB_URL = "postgresql://neondb_owner:npg_iMdXy4zUIRP7@ep-winter-rain-b4fuzg82-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DB_URL = os.environ["DATABASE_URL"]
 PDF_PATH = "attention is all you need.pdf"
 IMAGE_DIR = "extracted_images"
 os.makedirs(IMAGE_DIR, exist_ok=True)

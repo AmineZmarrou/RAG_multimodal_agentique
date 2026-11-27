@@ -94,17 +94,18 @@ ollama pull qwen2.5:1.5b
 
 Ouvrez l’adresse affichée par Streamlit, généralement <http://localhost:8501>. Le premier chargement de CLIP nécessite une connexion Internet.
 
-## Première démonstration
+## Tester MaintiDoc avec la borne Eaton Green Motion DC 22
 
-1. Dans la barre latérale, chargez `attention is all you need.pdf`.
-2. Cliquez sur **Indexer le PDF dans PGVector** et attendez la confirmation. Chaque indexation remplace le contenu de la table `documents_multimodaux`. Utilisez une base dédiée à cette démonstration.
-3. Posez l’une des questions ci-dessous. Comparez la réponse et la page citée au PDF original.
+1. Téléchargez le [manuel d’utilisation Eaton Green Motion DC 22 en français (PDF)](https://www.eaton.com/content/dam/eaton/products/emobility/ev-charging/green-motion-dc-22-en-us/eaton-green-motion-dc-22-user-manual-fr-fr.pdf).
+2. Chargez ce PDF dans la barre latérale de Streamlit et cliquez sur **Indexer le PDF dans PGVector**. Utilisez une base de démonstration dédiée : l’indexation remplace le document précédemment indexé.
+3. Après confirmation, posez les questions une par une. Vérifiez l’outil affiché dans Streamlit et comparez chaque résultat à la référence du manuel.
 
-| Question | Élément à vérifier |
-| --- | --- |
-| Explique le principe de la self-attention. | Ouvrir les passages bruts et retrouver l’explication sur la page citée. |
-| Montre le schéma de l’architecture Transformer. | Comparer la figure affichée et sa légende avec le PDF. |
-| Quel score BLEU le tableau indique-t-il pour la traduction anglais-allemand ? | Vérifier le modèle, la colonne et la valeur dans le tableau original. |
+| Recherche | Question à poser | Résultat attendu et référence |
+| --- | --- | --- |
+| Texte (`chercher_texte`) | Où se trouve le voyant LED de la borne Eaton Green Motion DC 22 ? Cite la page du manuel. | Sur la porte avant. Ouvrez les passages bruts et vérifiez la section 5.1, page 10. |
+| Image (`chercher_images`) | Montre la figure 1 de la borne Green Motion DC 22. | Comparez l’illustration renvoyée à la figure 1 du PDF. Vérifiez visuellement que les deux représentent la même vue de la borne. |
+| Tableau (`chercher_tableaux`) | Selon le tableau 2, que signifie un voyant orange qui clignote lentement ? | Une mise à jour est en cours. Vérifiez la ligne orange du tableau 2, page 10. |
+| Tableau (`chercher_tableaux`) | D’après le tableau 2, que signifie un voyant bleu qui clignote lentement, puis devient fixe ? | Le véhicule est d’abord en charge, puis sa charge est terminée. Vérifiez les deux lignes correspondantes du tableau 2, page 10. |
 
 Si aucun tableau n’a été détecté, l’outil peut afficher un passage textuel sous l’intitulé « tableau ». Les figures extraites sont enregistrées dans `extracted_images/`. Ce dossier doit rester accessible à l’application.
 

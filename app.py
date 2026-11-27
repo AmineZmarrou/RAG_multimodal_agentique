@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import psycopg2
 from sentence_transformers import SentenceTransformer
@@ -51,7 +52,6 @@ def chercher_tableaux(requete: str) -> str:
         (str(emb),)
     )
     rows = cur.fetchall()
-    # Si le PDF n'avait pas de tableau détecté par find_tables, on cherche les chiffres dans le texte
     if not rows:
         cur.execute(
             """SELECT content, page_num FROM documents_multimodaux 
@@ -87,13 +87,46 @@ def routeur_agentique_langchain(question: str):
     """Sélectionne intelligemment et instantanément les outils LangChain selon l'intention."""
     q_low = question.lower()
     outils_choisis = []
-    if any(m in q_low for m in ["tableau", "table", "résultat", "valeur", "chiffre", "score", "bleu", "performance"]):
+    if any(m in q_low for m in ["tableau", "table", "résultat", "valeur", "chiffre", "score", "bleu", "performance", "seuil", "heure"]):
         outils_choisis.append("chercher_tableaux")
-    if any(m in q_low for m in ["image", "schéma", "schema", "figure", "architecture", "montre", "diagramme", "visuel"]):
+    if any(m in q_low for m in ["image", "schéma", "schema", "figure", "architecture", "montre", "diagramme", "visuel", "coupe"]):
         outils_choisis.append("chercher_images")
-    if not outils_choisis or any(m in q_low for m in ["principe", "explique", "comment", "quoi", "attention"]):
+    if not outils_choisis or any(m in q_low for m in ["principe", "explique", "comment", "quoi", "attention", "composant", "procédure", "cavitation"]):
         outils_choisis.append("chercher_texte")
     return outils_choisis
+
+def stream_sans_excuse(llm_stream):
+    """Filtre les phrases d'excuse éventuelles au début de la génération du petit modèle Qwen 1.5B."""
+    buffer = ""
+    filtrage_termine = False
+    
+    for chunk in llm_stream:
+        texte = chunk.content if hasattr(chunk, "content") else str(chunk)
+        if not filtrage_termine:
+            buffer += texte
+            # Attendre d'avoir les ~180 premiers caractères pour vérifier s'il s'excuse
+            if len(buffer) > 180 or "\n" in buffer:
+                # Supprime les phrases d'excuse du type "Je suis désolé... Cependant, ..."
+                buffer = re.sub(
+                    r"^(Je suis désolé[^\.\n]*\.?\s*(Cependant,?\s*[^\.\n]*\.?\s*)?)",
+                    "",
+                    buffer,
+                    flags=re.IGNORECASE
+                ).lstrip()
+                filtrage_termine = True
+                if buffer:
+                    yield buffer
+        else:
+            yield texte
+            
+    if not filtrage_termine and buffer:
+        buffer = re.sub(
+            r"^(Je suis désolé[^\.\n]*\.?\s*(Cependant,?\s*[^\.\n]*\.?\s*)?)",
+            "",
+            buffer,
+            flags=re.IGNORECASE
+        ).lstrip()
+        yield buffer
 
 # 3. BARRE LATÉRALE : CHARGEMENT D'UN NOUVEAU PDF
 with st.sidebar:
@@ -107,9 +140,8 @@ with st.sidebar:
                 index_pdf("document.pdf", clip_model=clip_model)
             st.success("PDF indexé avec succès !")
 
-# 4. ORCHESTRATION AGENTIQUE & GÉNÉRATION EN STREAMING (OPTIMISÉE CPU 8 Go RAM)
-# num_ctx=2048 et num_predict=350 accélèrent Qwen par 4 sur un CPU AMD Ryzen !
-llm = ChatOllama(model="qwen2.5:1.5b", temperature=0, num_ctx=2048, num_predict=350)
+# 4. ORCHESTRATION AGENTIQUE & GÉNÉRATION EN STREAMING (num_predict=600 pour ne rien couper)
+llm = ChatOllama(model="qwen2.5:1.5b", temperature=0, num_ctx=2048, num_predict=600)
 
 question = st.chat_input("Posez votre question sur le texte, les tableaux ou les images du PDF...")
 
@@ -141,15 +173,23 @@ if question:
                             images_a_afficher.append((path, page, desc))
                             contexte_texte += f"\n[Figure disponible ({page}) : {desc}]\n"
 
-        # Génération en STREAMING : vous voyez les mots s'écrire en temps réel sans jamais bloquer !
+        # Reformulation des verbes visuels ("Montre-moi") pour que Qwen explique directement
+        question_pour_llm = re.sub(
+            r"\b(montre-moi|montre moi|affiche|fais voir)\b",
+            "Décris et explique en détail",
+            question,
+            flags=re.IGNORECASE
+        )
+
         final_prompt = (
-            f"Réponds en français de manière claire et concise en utilisant le contexte suivant extrait du PDF.\n"
-            f"Cite les numéros de pages sources (ex: [Page X]).\n\n"
+            f"Réponds en français de manière directe, précise et structurée en utilisant uniquement le CONTEXTE ci-dessous.\n"
+            f"Cite toujours les numéros de pages sources (ex: [Page 1]).\n\n"
             f"CONTEXTE :\n{contexte_texte[:1800]}\n\n"
-            f"QUESTION : {question}"
+            f"QUESTION : {question_pour_llm}"
         )
         
-        st.write_stream(llm.stream(final_prompt))
+        # Affichage en streaming avec filtrage anti-excuse garanti
+        st.write_stream(stream_sans_excuse(llm.stream(final_prompt)))
 
         # Affichage propre des tableaux si la question porte sur les tableaux
         if tableaux_extraits:

@@ -26,12 +26,30 @@ py -3.11 -m venv .venv
 
 ### 2. Créer la base de démonstration
 
-Remplacez `MOT_DE_PASSE_LOCAL` par un mot de passe personnel. Pour cet exemple de connexion, utilisez des lettres et des chiffres.
+**Avec Neon**, ouvrez l’éditeur SQL de votre propre base et exécutez directement le bloc SQL ci-dessous. Ce parcours permet de lancer MaintiDoc même si Docker Desktop affiche `exec format error`.
+
+**Avec Docker Desktop**, utilisez le moteur Linux. Dans PowerShell, récupérez sa plateforme et testez le démarrage de l’image pgvector avant de connecter le volume de données.
 
 ```powershell
-docker run --name maintidoc-db -e POSTGRES_PASSWORD=MOT_DE_PASSE_LOCAL -e POSTGRES_DB=maintidoc -p 127.0.0.1:5432:5432 -v maintidoc-pg:/var/lib/postgresql/data -d pgvector/pgvector:pg16
-docker exec -it maintidoc-db psql -U postgres -d maintidoc
+$platform = docker version --format '{{.Server.Os}}/{{.Server.Arch}}'
+docker pull --platform $platform pgvector/pgvector:pg16
+docker run --rm --platform $platform pgvector/pgvector:pg16 postgres --version
 ```
+
+Continuez si le test affiche la version de PostgreSQL. Si un ancien conteneur nommé `maintidoc-db` est arrêté avec `exec format error`, conservez-le sous un autre nom avant de recréer le service :
+
+```powershell
+docker rename maintidoc-db maintidoc-db-ancien
+```
+
+Remplacez `MOT_DE_PASSE_LOCAL` par votre mot de passe. Avec un volume déjà initialisé, utilisez le mot de passe existant.
+
+```powershell
+docker run --name maintidoc-db --platform $platform -e POSTGRES_PASSWORD=MOT_DE_PASSE_LOCAL -e POSTGRES_DB=maintidoc -p 127.0.0.1:5432:5432 -v maintidoc-pg:/var/lib/postgresql/data -d pgvector/pgvector:pg16
+docker exec maintidoc-db pg_isready -U postgres -d maintidoc
+```
+
+Lorsque PostgreSQL affiche `accepting connections`, ouvrez sa console avec `docker exec -it maintidoc-db psql -U postgres -d maintidoc`. Si le test de l’image échoue encore, utilisez le parcours Neon ci-dessus pour poursuivre le projet.
 
 Dans `psql`, exécutez les instructions suivantes. Avec Neon, exécutez-les dans l’éditeur SQL de votre base.
 
@@ -52,13 +70,7 @@ Dans `psql`, saisissez `\q` pour revenir à PowerShell.
 
 ### 3. Configurer la connexion
 
-Dans la version examinée (`e375344`), `app.py`, `indexer.py` et `test_db.py` contiennent chacun une affectation de `DB_URL`. **Avant le premier lancement**, remplacez cette affectation dans les trois fichiers par le code suivant. Ajoutez `import os` uniquement si l’import est absent.
-
-```python
-import os
-
-DB_URL = os.environ["DATABASE_URL"]
-```
+Les trois scripts lisent la variable d’environnement `DATABASE_URL`. Définissez-la dans le même terminal que Streamlit.
 
 Le mot de passe Neon précédemment publié doit être renouvelé par le propriétaire du dépôt. Conservez le nouvel identifiant en dehors du code.
 
@@ -82,17 +94,18 @@ ollama pull qwen2.5:1.5b
 
 Ouvrez l’adresse affichée par Streamlit, généralement <http://localhost:8501>. Le premier chargement de CLIP nécessite une connexion Internet.
 
-## Première démonstration
+## Tester MaintiDoc avec la borne Eaton Green Motion DC 22
 
-1. Dans la barre latérale, chargez `attention is all you need.pdf`.
-2. Cliquez sur **Indexer le PDF dans PGVector** et attendez la confirmation. Chaque indexation remplace le contenu de la table `documents_multimodaux`. Utilisez une base dédiée à cette démonstration.
-3. Posez l’une des questions ci-dessous. Comparez la réponse et la page citée au PDF original.
+1. Téléchargez le [manuel d’utilisation Eaton Green Motion DC 22 en français (PDF)](https://www.eaton.com/content/dam/eaton/products/emobility/ev-charging/green-motion-dc-22-en-us/eaton-green-motion-dc-22-user-manual-fr-fr.pdf).
+2. Chargez ce PDF dans la barre latérale de Streamlit et cliquez sur **Indexer le PDF dans PGVector**. Utilisez une base de démonstration dédiée : l’indexation remplace le document précédemment indexé.
+3. Après confirmation, posez les questions une par une. Vérifiez l’outil affiché dans Streamlit et comparez chaque résultat à la référence du manuel.
 
-| Question | Élément à vérifier |
-| --- | --- |
-| Explique le principe de la self-attention. | Ouvrir les passages bruts et retrouver l’explication sur la page citée. |
-| Montre le schéma de l’architecture Transformer. | Comparer la figure affichée et sa légende avec le PDF. |
-| Quel score BLEU le tableau indique-t-il pour la traduction anglais-allemand ? | Vérifier le modèle, la colonne et la valeur dans le tableau original. |
+| Recherche | Question à poser | Résultat attendu et référence |
+| --- | --- | --- |
+| Texte (`chercher_texte`) | Où se trouve le voyant LED de la borne Eaton Green Motion DC 22 ? Cite la page du manuel. | Sur la porte avant. Ouvrez les passages bruts et vérifiez la section 5.1, page 10. |
+| Image (`chercher_images`) | Montre la figure 1 de la borne Green Motion DC 22. | Comparez l’illustration renvoyée à la figure 1 du PDF. Vérifiez visuellement que les deux représentent la même vue de la borne. |
+| Tableau (`chercher_tableaux`) | Selon le tableau 2, que signifie un voyant orange qui clignote lentement ? | Une mise à jour est en cours. Vérifiez la ligne orange du tableau 2, page 10. |
+| Tableau (`chercher_tableaux`) | D’après le tableau 2, que signifie un voyant bleu qui clignote lentement, puis devient fixe ? | Le véhicule est d’abord en charge, puis sa charge est terminée. Vérifiez les deux lignes correspondantes du tableau 2, page 10. |
 
 Si aucun tableau n’a été détecté, l’outil peut afficher un passage textuel sous l’intitulé « tableau ». Les figures extraites sont enregistrées dans `extracted_images/`. Ce dossier doit rester accessible à l’application.
 
